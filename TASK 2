@@ -1,0 +1,95 @@
+import pexpect
+import time
+
+# Define variables
+router_ip = '192.168.56.101'
+username = 'prne'
+password = 'cisco123!'
+enable_password = 'class123!'
+hostname = 'Router1'
+
+# Configuration commands
+loopback_address = "10.10.10.23"
+loopback_subnet = "255.255.255.255"
+ospf_area_id = "0"
+main_interface_ip = "192.168.56.101"
+main_interface_subnet = "255.255.255.0"
+main_interface_name = "GigabitEthernet1"
+
+def send_command(session, command, expect="#", delay=1):
+    """Send a command to the router and wait for the expected prompt."""
+    session.sendline(command)
+    session.expect(expect)
+    time.sleep(delay)  # Allow some time for the command to execute
+    return session.before.strip()
+
+def setup_router():
+    try:
+        # Establish an SSH connection
+        print("[*] Connecting to the router...")
+        session = pexpect.spawn(f"ssh -o StrictHostKeyChecking=no {username}@{router_ip}", timeout=20, encoding="utf-8")
+        session.expect("Password:")
+        session.sendline(password)
+        session.expect(">")
+        print("[+] Connected to the router.")
+
+        # Enter enable mode
+        print("[*] Switching to enable mode...")
+        session.sendline("enable")
+        session.expect("Password:")
+        session.sendline(enable_password)
+        session.expect("#")
+        print("[+] Enable mode activated.")
+
+        # Enter configuration mode
+        print("[*] Entering configuration mode...")
+        send_command(session, "configure terminal", expect="(config)#")
+
+        # Update hostname
+        print(f"[*] Setting hostname to {hostname}...")
+        send_command(session, f"hostname {hostname}", expect=f"{hostname}(config)#")
+
+        # Configure loopback interface
+        print("[*] Setting up loopback interface...")
+        send_command(session, "interface loopback 0", expect=f"{hostname}(config-if)#")
+        send_command(session, f"ip address {loopback_address} {loopback_subnet}", expect=f"{hostname}(config-if)#")
+        send_command(session, "no shutdown", expect=f"{hostname}(config-if)#")
+
+        # Configure primary interface
+        print(f"[*] Configuring {main_interface_name}...")
+        send_command(session, f"interface {main_interface_name}", expect=f"{hostname}(config-if)#")
+        send_command(session, f"ip address {main_interface_ip} {main_interface_subnet}", expect=f"{hostname}(config-if)#")
+        send_command(session, "no shutdown", expect=f"{hostname}(config-if)#")
+
+        # Set up OSPF
+        print("[*] Enabling OSPF routing protocol...")
+        send_command(session, "router ospf 1", expect=f"{hostname}(config-router)#")
+        send_command(session, f"network {loopback_address} 0.0.0.0 area {ospf_area_id}", expect=f"{hostname}(config-router)#")
+        send_command(session, f"network {main_interface_ip} 0.0.0.255 area {ospf_area_id}", expect=f"{hostname}(config-router)#")
+
+        # Save the configuration
+        print("[*] Saving current configuration...")
+        send_command(session, "write memory", expect=f"{hostname}#")
+
+        # Verify OSPF settings
+        print("[*] Verifying OSPF configuration...")
+        send_command(session, "show ip ospf", expect=f"{hostname}#", delay=2)
+        ospf_output = session.before.strip()
+
+        print("[+] OSPF Details:")
+        print(ospf_output)
+
+        # Close the session
+        session.sendline("exit")
+        session.close()
+        print("[+] Setup completed successfully.")
+
+    except pexpect.exceptions.TIMEOUT:
+        print("[!] Operation timed out.")
+    except pexpect.exceptions.EOF:
+        print("[!] Unexpected EOF encountered.")
+    except Exception as error:
+        print(f"[!] General Error: {error}")
+
+if __name__ == "__main__":
+    setup_router()

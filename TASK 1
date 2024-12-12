@@ -1,0 +1,90 @@
+from netmiko import ConnectHandler
+
+# Device Information for Telnet
+device_telnet = {
+    'device_type': 'cisco_ios_telnet',  # Specify that we're using Telnet
+    'host': '192.168.56.101',
+    'username': 'cisco',
+    'password': 'cisco123!',
+}
+
+# Establish Telnet connection
+net_connect = ConnectHandler(**device_telnet)
+
+# Enter enable mode (privileged EXEC)
+net_connect.enable()
+
+# Change hostname in global configuration mode
+config_commands = ['hostname Router-Telnet']
+net_connect.send_config_set(config_commands)
+
+# Send the command to display running configuration
+running_config = net_connect.send_command('show running-config')
+
+# Save the running config to a file
+with open('running_config_telnet_netmiko.txt', 'w') as f:
+    f.write(running_config)
+
+# Disconnect the Telnet session
+net_connect.disconnect()
+
+print("Telnet connection completed. Hostname changed and running config saved.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+SSH 
+
+
+
+
+from netmiko import ConnectHandler
+from netmiko.ssh_exception import NetmikoTimeoutException, NetmikoAuthenticationException
+
+# Device Information
+ssh_device = {
+    'device_type': 'cisco_ios',  # Specify device type for SSH
+    'host': '192.168.56.101',
+    'username': 'cisco',
+    'password': 'cisco123!',
+    'secret': 'cisco123!',  # Enable password if necessary
+}
+
+try:
+    # Establish SSH connection
+    connection = ConnectHandler(**ssh_device)
+    
+    # Enter enable mode (if required)
+    connection.enable()
+
+    # Change the hostname using send_config_set for configuration changes
+    new_hostname = "Router-SSH"
+    config_commands = [
+        f"hostname {new_hostname}"
+    ]
+    connection.send_config_set(config_commands)
+
+    # Optionally save the configuration
+    connection.save_config()
+
+    # Display running configuration and save it to a file
+    running_config = connection.send_command("show running-config")
+    with open('running_config_ssh.txt', 'w') as f:
+        f.write(running_config)
+
+    # Close the SSH connection
+    connection.disconnect()
+
+    print("SSH script completed. Hostname changed and running config saved.")
+
+except (NetmikoTimeoutException, NetmikoAuthenticationException) as error:
+    print(f"Connection failed: {error}")
